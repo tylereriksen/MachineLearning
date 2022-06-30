@@ -20,7 +20,8 @@ class ShowerEnv(Env):
 
     def step(self, action):
         original = self.state
-        self.state += action - 1
+        # temperature noise
+        self.state += action - 1 + ((random.random()) - 0.5)
         self.shower_length -= 1
 
         reward = -1
