@@ -1,12 +1,11 @@
 # important necessary packages
-import gym
 from gym import Env
-from gym.spaces import Discrete, Box, Dict, Tuple, MultiBinary, MultiDiscrete
+from gym.spaces import Discrete, Box
 import numpy as np
 import random
 import math
 import matplotlib.pyplot as plt
-
+import turtle
 
 class SpaceshipMove(Env):
     # initialize the values
@@ -15,8 +14,8 @@ class SpaceshipMove(Env):
         self.action_space = Discrete(3)
         # Box of x coordinate and y coordinate with the heading (angle of travel)
         self.observation_space = Box(low=np.array([0,0,0]), high=np.array([100,100,90]))
-        # starts at origin and is pointed 40-50 degrees above the x-axis
-        self.state = np.array([0,0,random.randint(40, 50)])
+        # starts at origin and is pointed 25-65 degrees above the x-axis
+        self.state = np.array([0,0,random.randint(25, 65)])
         # coordinate values
         self.x = 0
         self.y = 0
@@ -24,12 +23,14 @@ class SpaceshipMove(Env):
         self.plot = [tuple([self.x, self.y])]
         # experimental value that keeps track of heading changes
         self.energy_expended = 0
+        self.action_take = [self.state[2]]
 
         # possibly add a length? or an energy expended limit?
 
     def step(self, action):
         # get the new direction based on the action
         newHeading = self.state[2] + action - 1
+        self.action_take.append(action)
 
         # every time direction changes, expel one unit of energy
         if not action == 1:
@@ -57,7 +58,57 @@ class SpaceshipMove(Env):
         return self.state, reward, done, info
 
     def render(self):
-        # render: show the graph of the trajectory of the spaceship
+        # render: showing the movements of the spacecraft as it adjusts its course
+        turtle.TurtleScreen._RUNNING = True
+        tt = turtle.Screen()
+        tt.screensize(300, 300)
+        tt.bgcolor("black")
+        ss=turtle.Turtle()
+        ss.hideturtle()
+        ss.speed(0)
+        ss.penup()
+        ss.goto(282,300)
+        ss.right(90)
+        ss.pendown()
+        ss.color("red")
+        ss.fillcolor("red")
+        ss.begin_fill()
+        for i in range(0, 91):
+            ss.left(1)
+            ss.forward(18/57.794325)
+        ss.left(89)
+        ss.forward(18)
+        ss.left(90)
+        ss.forward(18)
+        ss.end_fill()
+        ss.penup()
+        ss.right(180)
+        ss.color("white")
+        ss.goto(-300, -300)
+        ss.pendown()
+        ss.forward(600)
+        ss.left(90)
+        ss.forward(600)
+        ss.left(90)
+        ss.forward(600)
+        ss.left(90)
+        ss.forward(600)
+        ss.left(90)
+        ss.speed(1)
+        ss.showturtle()
+        ss.color("blue")
+        for heading in self.action_take:
+            if heading > 2:
+                ss.left(heading)
+            elif heading - 1 > 0:
+                ss.left(1)
+            elif heading - 1 < 0:
+                ss.right(1)
+            ss.forward(6)
+        del ss
+        turtle.bye()
+
+    def render2(self):
         circle1 = plt.Circle((100, 100), 3, color='r')
         fig, ax = plt.subplots()
         ax.set_aspect(1)
@@ -67,13 +118,15 @@ class SpaceshipMove(Env):
         ax.plot([a[0] for a in self.plot], [a[1] for a in self.plot], 'b')
         plt.show()
 
+
     # set back to original parameters
     def reset(self):
-        self.state = np.array([0,0,random.randint(40, 50)])
+        self.state = np.array([0,0,random.randint(25, 65)])
         self.x = 0
         self.y = 0
         self.plot = [tuple([self.x, self.y])]
         self.energy_expended = 0
+        self.action_take = [self.state[2]]
         return self.state
 
     # helper functions
@@ -86,30 +139,15 @@ class SpaceshipMove(Env):
 
 # make environment
 env = SpaceshipMove()
-# run 100 episodes to see how it runs
-'''
-episodes = 100
-for episode in range(1, episodes + 1):
-    state = env.reset()
-    done = False
-    while not done:
-        action = env.action_space.sample()
-        n_state, reward, done, info = env.step(action)
-        print(n_state, reward)
-    if reward == 0:
-        print("SUCCESS")
-        break
-env.close()
-'''
 
 # parameters for q-learning
-LEARNING_RATE = 0.1
+LEARNING_RATE = 0.15
 DISCOUNT = 0.95
 EPISODES = 1000000
 SHOW_EVERY = 2000
 
 # make the discrete values table: 20 values for x and y coordinates and 9 values for the heading
-DISCRETE_OS_SIZE = [20, 20, 9]
+DISCRETE_OS_SIZE = [25, 25, 15]
 discrete_os_win_size = (env.observation_space.high - env.observation_space.low) / DISCRETE_OS_SIZE
 
 # epsilon decay function values
@@ -130,12 +168,12 @@ aggr_ep_rewards = {'ep': [], 'avg': [], 'min': [], 'max': []}
 def get_discrete_state(state):
     discrete_state = (state - env.observation_space.low) / discrete_os_win_size
     returnTuple = list(discrete_state.astype(np.int))
-    if returnTuple[0] == 20:
-        returnTuple[0] = 19
-    if returnTuple[1] == 20:
-        returnTuple[1] = 19
-    if returnTuple[2] == 9:
-        returnTuple[2] = 8
+    if returnTuple[0] == 25:
+        returnTuple[0] = 24
+    if returnTuple[1] == 25:
+        returnTuple[1] = 24
+    if returnTuple[2] == 15:
+        returnTuple[2] = 14
     return tuple(returnTuple)
 
 # keep track of the number of successful attempts
@@ -200,11 +238,10 @@ for episode in range(EPISODES):
         print(f"Episode: {episode} avg: {average_reward} min: {min(ep_rewards[-SHOW_EVERY: ])} max: {max(ep_rewards[-SHOW_EVERY: ])}")
 
     '''
-    render = bool(episode % 50000 == 0)
-
-    if render and reward == 0:
-        print(env.get_energy())
+    if total_right % 20000 == 0 and reward == 0:
+        # print(env.get_energy())
         env.render()
+        # env.render2()
     '''
 
 env.close()
