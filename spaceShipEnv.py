@@ -1,3 +1,5 @@
+# Used Sources: SentDex Q-Learning Tutorial, Nicholas Renotte Open AIGym Introduction
+
 # important necessary packages
 from gym import Env
 from gym.spaces import Discrete, Box
@@ -59,6 +61,7 @@ class SpaceshipMove(Env):
 
     def render(self):
         # render: showing the movements of the spacecraft as it adjusts its course
+        # it will show the path the spacecraft traces as it travels as well
         turtle.TurtleScreen._RUNNING = True
         tt = turtle.Screen()
         tt.screensize(300, 300)
@@ -108,6 +111,8 @@ class SpaceshipMove(Env):
         del ss
         turtle.bye()
 
+    # secondary render method where we just show the trajectory travelled by the spaceship
+    # experimental
     def render2(self):
         circle1 = plt.Circle((100, 100), 3, color='r')
         fig, ax = plt.subplots()
@@ -142,11 +147,11 @@ env = SpaceshipMove()
 
 # parameters for q-learning
 LEARNING_RATE = 0.15
-DISCOUNT = 0.95
+DISCOUNT = 0.9
 EPISODES = 1000000
 SHOW_EVERY = 2000
 
-# make the discrete values table: 20 values for x and y coordinates and 9 values for the heading
+# make the discrete values table: 25 values for x and y coordinates and 15 values for the heading
 DISCRETE_OS_SIZE = [25, 25, 15]
 discrete_os_win_size = (env.observation_space.high - env.observation_space.low) / DISCRETE_OS_SIZE
 
@@ -165,15 +170,12 @@ ep_rewards = []
 aggr_ep_rewards = {'ep': [], 'avg': [], 'min': [], 'max': []}
 
 # function to assign discrete values for the states
-def get_discrete_state(state):
+def get_discrete_state(state, num_states):
     discrete_state = (state - env.observation_space.low) / discrete_os_win_size
     returnTuple = list(discrete_state.astype(np.int))
-    if returnTuple[0] == 25:
-        returnTuple[0] = 24
-    if returnTuple[1] == 25:
-        returnTuple[1] = 24
-    if returnTuple[2] == 15:
-        returnTuple[2] = 14
+    for idx, val in enumerate(num_states):
+        if returnTuple[idx] == val:
+            returnTuple[idx] == val - 1
     return tuple(returnTuple)
 
 # keep track of the number of successful attempts
@@ -184,11 +186,15 @@ total_count_last_last = 0
 # plotting the average rate of the spaceship making it to the target over the episodes
 plot_correct = []
 
+# go through the episodes to reinforcement learn
 for episode in range(EPISODES):
+    # set render to off since rendering takes a load of time
     render = False
     episode_reward = 0
-    discrete_state = get_discrete_state(env.reset())
+    discrete_state = get_discrete_state(env.reset(), DISCRETE_OS_SIZE)
     done = False
+
+    # keep running through the episode while it is not finished
     while not done:
         if np.random.random() > epsilon:
             action = np.argmax(q_table[discrete_state])
@@ -197,7 +203,7 @@ for episode in range(EPISODES):
 
         new_state, reward, done, info = env.step(action)
         episode_reward += reward
-        new_discrete_state = get_discrete_state(new_state)
+        new_discrete_state = get_discrete_state(new_state, [DISCRETE_OS_SIZE])
         if not done:
             max_future_q = np.max(q_table[new_discrete_state])
             current_q = q_table[discrete_state][action]
@@ -206,6 +212,7 @@ for episode in range(EPISODES):
             new_q = (1 - LEARNING_RATE) * current_q + LEARNING_RATE * (reward + DISCOUNT * max_future_q)
             q_table[discrete_state + (action, )] = new_q
 
+        # check to see if the episode finished because the target was met
         elif math.sqrt((new_state[0] - 100) ** 2 + (new_state[1] - 100) ** 2) <= 3:
             q_table[discrete_state][action] = 0
             '''
@@ -223,12 +230,15 @@ for episode in range(EPISODES):
 
         discrete_state = new_discrete_state
 
+    # epsilon tracking to "learn" more (even after once finding a solution)
     if END_EPSILON_DECAYING >= episode >= START_EPSILON_DECAYING:
         epsilon -= epsilon_decay_value
 
     plot_correct.append(tuple([episode, total_right / (episode + 1)]))
     ep_rewards.append(episode_reward)
 
+    # show some of the statistics such as average reward per episode, minimum reward
+    # maximum reward, etc.
     if not episode % SHOW_EVERY:
         average_reward = sum(ep_rewards[-SHOW_EVERY: ]) / len(ep_rewards[-SHOW_EVERY: ])
         aggr_ep_rewards['ep'].append(episode)
@@ -250,6 +260,8 @@ print(total_right / 1000000)
 print(total_count_last / 100000)
 print(total_count_last_last / 1000)
 
+# plot data of the overall average of accuracy (whether they made it
+# to the target or not
 fig, ax = plt.subplots()
 ax.set_xlim(left=0, right=EPISODES)
 ax.set_ylim(bottom=0, top=1)
